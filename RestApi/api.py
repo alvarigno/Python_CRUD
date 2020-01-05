@@ -22,3 +22,10 @@ record_list.append(record_2)
 insert_records = '''INSERT INTO Books(Name, Price) VALUES(?,?) ''' 
 cursor.executemany(insert_records, record_list)
 cnxn.commit()
+
+# select records
+select_record = '''SELECT * FROM Books'''
+cursor.execute(select_record)
+     
+for row in cursor:
+    print(row)
