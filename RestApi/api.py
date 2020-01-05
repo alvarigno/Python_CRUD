@@ -37,3 +37,9 @@ for row in cursor:
 update_query = '''UPDATE Books SET Price = 400 WHERE Id= 2'''
 cursor.execute(update_query)
 cnxn.commit()
+
+
+# deleting records
+delete_query = '''DELETE FROM Books WHERE Id= 3'''
+cursor.execute(delete_query )
+cnxn.commit()
