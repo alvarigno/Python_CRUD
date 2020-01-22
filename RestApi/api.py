@@ -1,45 +1,108 @@
-import pyodbc
-server = 'tcp:localhost'
-database = 'LibraryDB'
-username = 'sa'
-password = 'jobver@22'
-cnxn = pyodbc.connect('DRIVER={ODBC Driver 17 for SQL Server};SERVER='+server+';DATABASE='+database+';UID='+username+';PWD='+ password)
-cursor = cnxn.cursor()
-cursor.execute("SELECT @@version;")
-row = cursor.fetchone()
-while row:
-    print (row)
-    row = cursor.fetchone()
+#!flask/bin/python
+#from flask import Flask, jsonify, abort, request, make_response, url_for
+#from flask_httpauth import HTTPBasicAuth
 
-#Inser data into SQL Server by Pythonb 
-record_1= ["Book - B", 300]
-record_2= ["Book - C", 200]
+from flask import Flask, jsonify, abort, request, make_response, url_for
+from flask_httpauth import HTTPBasicAuth
+
+app = Flask(__name__, static_url_path = "")
+#auth = HTTPBasicAuth()
+
+#@auth.get_password
+#def get_password(username):
+#    if username == 'miguel':
+#        return 'python'
+#    return None
+
+#@auth.error_handler
+#def unauthorized():
+#    return make_response(jsonify( { 'error': 'Unauthorized access' } ), 403)
+    # return 403 instead of 401 to prevent browsers from displaying the default auth dialog
     
-record_list = []
-record_list.append(record_1)
-record_list.append(record_2)
+@app.errorhandler(400)
+def not_found(error):
+    return make_response(jsonify( { 'error': 'Bad request' } ), 400)
 
-""" 
-insert_records = '''INSERT INTO Books(Name, Price) VALUES(?,?) ''' 
-cursor.executemany(insert_records, record_list)
-cnxn.commit()
-"""
+@app.errorhandler(404)
+def not_found(error):
+    return make_response(jsonify( { 'error': 'Not found' } ), 404)
 
-# select records
-select_record = '''SELECT * FROM Books'''
-cursor.execute(select_record)
-     
-for row in cursor:
-    print(row)
+tasks = [
+    {
+        'id': 1,
+        'title': u'Buy groceries',
+        'description': u'Milk, Cheese, Pizza, Fruit, Tylenol', 
+        'done': False
+    },
+    {
+        'id': 2,
+        'title': u'Learn Python',
+        'description': u'Need to find a good Python tutorial on the web', 
+        'done': True
+    }
+]
 
+def make_public_task(task):
+    new_task = {}
+    for field in task:
+        if field == 'id':
+            new_task['uri'] = url_for('get_task', task_id = task['id'], _external = True)
+        else:
+            new_task[field] = task[field]
+    return new_task
+    
+@app.route('/todo/api/v1.0/tasks', methods = ['GET'])
+#@auth.login_required
+def get_tasks():
+    return jsonify( { 'tasks': map(make_public_task, tasks) } )
 
-# update record
-update_query = '''UPDATE Books SET Price = 400 WHERE Id= 2'''
-cursor.execute(update_query)
-cnxn.commit()
+@app.route('/todo/api/v1.0/tasks/<int:task_id>', methods = ['GET'])
+#@auth.login_required
+def get_task(task_id):
+    task = list(filter(lambda t: t['id'] == task_id, tasks))
+    if list(task) == 0: abort(404)
+    return jsonify( { 'task': make_public_task(task[0]) } )
 
+@app.route('/todo/api/v1.0/tasks', methods = ['POST'])
+#@auth.login_required
+def create_task():
+    if not request.json or not 'title' in request.json:
+        abort(400)
+    task = {
+        'id': tasks[-1]['id'] + 1,
+        'title': request.json['title'],
+        'description': request.json.get('description', ""),
+        'done': False
+    }
+    tasks.append(task)
+    return jsonify( { 'task': make_public_task(task) } ), 201
 
-# deleting records
-delete_query = '''DELETE FROM Books WHERE Id= 3'''
-cursor.execute(delete_query )
-cnxn.commit()
+@app.route('/todo/api/v1.0/tasks/<int:task_id>', methods = ['PUT'])
+#@auth.login_required
+def update_task(task_id):
+    task = list(filter(lambda t: t['id'] == task_id, tasks))
+    if len(task) == 0:
+        abort(404)
+    if not request.json:
+        abort(400)
+    if 'title' in request.json and type(request.json['title']) != unicode:
+        abort(400)
+    if 'description' in request.json and type(request.json['description']) is not unicode:
+        abort(400)
+    if 'done' in request.json and type(request.json['done']) is not bool:abort(400)
+    task[0]['title'] = request.json.get('title', task[0]['title'])
+    task[0]['description'] = request.json.get('description', task[0]['description'])
+    task[0]['done'] = request.json.get('done', task[0]['done'])
+    return jsonify( { 'task': make_public_task(task[0]) } )
+    
+@app.route('/todo/api/v1.0/tasks/<int:task_id>', methods = ['DELETE'])
+#@auth.login_required
+def delete_task(task_id):
+    task = list(filter(lambda t: t['id'] == task_id, tasks))
+    if len(task) == 0:
+        abort(404)
+    tasks.remove(task[0])
+    return jsonify( { 'result': True } )
+    
+if __name__ == '__main__':
+    app.run(debug = True)
